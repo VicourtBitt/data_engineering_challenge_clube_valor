@@ -1,0 +1,127 @@
+version: 2
+
+models:
+  # STAGING LAYER
+  - name: stg_clients
+    description: "Dados brutos de clientes com colunas renomeadas e tipadas."
+    columns:
+      - name: client_id
+        description: "ID único do cliente."
+        tests:
+          - unique
+          - not_null
+      - name: client_name
+        description: "Nome completo do cliente."
+      - name: city
+        description: "Cidade de residência do cliente."
+      - name: state
+        description: "Estado de residência do cliente (UF)."
+      - name: created_at
+        description: "Data em que o cadastro do cliente foi criado."
+
+  - name: stg_transactions
+    description: "Dados brutos de transações padronizados e tipados."
+    columns:
+      - name: transaction_id
+        description: "ID único da transação."
+        tests:
+          - unique
+          - not_null
+      - name: client_id
+        description: "ID do cliente que realizou a transação."
+        tests:
+          - not_null
+      - name: asset_ticker
+        description: "Código do ativo negociado (ex: PETR4, VALE3)."
+      - name: transaction_type
+        description: "Tipo da operação (BUY ou SELL)."
+        tests:
+          - accepted_values:
+              values: ['BUY', 'SELL']
+      - name: quantity
+        description: "Quantidade de ativos negociados na operação."
+      - name: price
+        description: "Preço unitário do ativo no momento da transação."
+      - name: transaction_date
+        description: "Data em que a transação foi executada."
+
+  # MID LAYER
+  - name: int_transactions
+    description: "Modelo intermediário que enriquece as transações com regras de negócio, como o cálculo do volume financeiro."
+    columns:
+      - name: transaction_id
+        description: "ID único da transação."
+        tests:
+          - unique
+          - not_null
+      - name: client_id
+        description: "ID do cliente."
+      - name: asset_ticker
+        description: "Código do ativo."
+      - name: transaction_type
+        description: "Tipo da operação (BUY ou SELL)."
+      - name: quantity
+        description: "Quantidade negociada."
+      - name: price
+        description: "Preço unitário do ativo."
+      - name: financial_volume
+        description: "Volume financeiro total da transação (quantidade * preço unitário)."
+      - name: transaction_date
+        description: "Data da transação."
+
+  # MARTS LAYER
+  - name: dim_clients
+    description: "Dimensão de clientes pronta para consumo analítico."
+    columns:
+      - name: client_id
+        description: "ID único do cliente."
+        tests:
+          - unique
+          - not_null
+      - name: client_name
+        description: "Nome completo do cliente."
+      - name: city
+        description: "Cidade de residência."
+      - name: state
+        description: "Estado de residência (UF)."
+      - name: created_at
+        description: "Data de criação do cadastro."
+
+  - name: fct_transactions
+    description: "Tabela fato (incremental) contendo o histórico consolidado e enriquecido de transações."
+    columns:
+      - name: transaction_id
+        description: "Chave primária da transação."
+        tests:
+          - unique
+          - not_null
+      - name: client_id
+        description: "Chave estrangeira apontando para dim_clients."
+      - name: asset_ticker
+        description: "Código do ativo."
+      - name: transaction_type
+        description: "Tipo da operação."
+      - name: quantity
+        description: "Quantidade de ativos."
+      - name: price
+        description: "Preço unitário."
+      - name: financial_volume
+        description: "Volume financeiro total."
+      - name: transaction_date
+        description: "Data em que a transação ocorreu (usada como chave de controle para carga incremental)."
+
+  - name: mart_client_portfolio
+    description: "Tabela que consolida a posição líquida atual de cada cliente por ativo."
+    columns:
+      - name: client_id
+        description: "ID único do cliente."
+        tests:
+          - not_null
+      - name: asset_ticker
+        description: "Código do ativo em custódia."
+        tests:
+          - not_null
+      - name: net_quantity
+        description: "Quantidade líquida do ativo (Total Comprado - Total Vendido). Não deve ser negativa."
+      - name: net_financial_volume
+        description: "Saldo financeiro líquido alocado no ativo."
